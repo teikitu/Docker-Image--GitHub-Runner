@@ -1,0 +1,11 @@
+services:
+  runner:
+    image: teikitu-github-runner-linux:latest
+    cpus: 0.5
+    build:
+      context: .
+      args:
+        RUNNER_VERSION: '2.321.0'
+    environment:
+      GH_TOKEN: ${GH_TOKEN}
+      GH_ENTERPRISE: ${GH_ENTERPRISE}
