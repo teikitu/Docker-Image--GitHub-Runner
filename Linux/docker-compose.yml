@@ -1,0 +1,13 @@
+services:
+  runner:
+    image: teikitu-github-runner-win:latest
+    build:
+      context: .
+      args:
+        RUNNER_VERSION: '2.292.0'
+        GH_OWNER_ARG: ${GH_OWNER}
+        GH_TOKEN_ARG: ${GH_TOKEN}
+    environment:
+      GH_OWNER_ENV: ${GH_OWNER}
+      GH_TOKEN_ENV: ${GH_TOKEN}
+      GH_REPOSITORY: ${GH_REPOSITORY}
