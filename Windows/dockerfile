@@ -1,0 +1,70 @@
+# escape=`
+
+# Use the latest Windows Server Core 2025 image.
+FROM mcr.microsoft.com/windows/servercore:ltsc2025
+
+# Input GitHub runner version argument
+ARG RUNNER_VERSION
+ARG GH_OWNER_ARG
+ARG GH_TOKEN_ARG
+
+# Additional label information
+LABEL Author="Andrew Aye"
+LABEL Email="github.sublime362@passmail.net"
+LABEL GitHub="https://github.com/teikitu/teikitu-release"
+LABEL BaseImage="servercore:ltsc2025"
+LABEL RunnerVersion=${RUNNER_VERSION}
+
+# Set the default shell
+SHELL ["powershell", "-Command", "$ErrorActionPreference = 'Stop';"]
+
+# Set working directory
+WORKDIR /actions-runner
+
+# Install chocolatey
+ADD install-choco.ps1 .
+RUN .\install-choco.ps1 -Wait; `
+    Remove-Item .\install-choco.ps1 -Force
+
+# Install dependencies
+RUN choco install -y git
+RUN choco install -y gh
+RUN choco install -y powershell-core
+RUN choco install -y azure-cli
+RUN choco install -y ninja
+RUN choco install -y llvm
+RUN choco install -y winflexbison
+RUN choco install -y python3 --version=3.11.5
+
+# Install Python and dependencies needed for OpenUSD
+RUN python.exe -m pip install --upgrade pip
+RUN pip3 install Jinja2
+RUN pip3 install PyOpenGL
+RUN pip3 install pyside6==6.5.1.1 --ignore-installed
+
+# Install Visual Studio 2022 Professional
+RUN choco install -y visualstudio2022professional --package-parameters "--allWorkloads --includeRecommended --includeOptional --passive"
+
+# Manually remove an old ssh-agent service
+RUN sc.exe delete ssh-agent
+RUN choco install -y openssh -params '"/SSHAgentFeature"' --no-progress -y
+ENV GIT_SSH="C:\Program Files\OpenSSH-Win64\ssh.exe"
+
+# Install custom CMake
+ADD cmake-3.31.0-g6dffcf0-win32-x86.exe .
+RUN .\cmake-3.31.0-g6dffcf0-win32-x86.exe /S /D=C:\Program Files\CMake `
+    Remove-Item .\cmmake-3.31.0-g6dffcf0-win32-x86.exe -Force
+
+# Make Git Configuration
+ENV GH_OWNER_ENV=${GH_OWNER_ARG}
+ENV GH_TOKEN_ENV=${GH_TOKEN_ARG}
+
+# Download GitHub Runner based on RUNNER_VERSION argument (Can use: Docker build --build-arg RUNNER_VERSION=x.y.z)
+RUN Invoke-WebRequest -Uri "https://github.com/actions/runner/releases/download/v$env:RUNNER_VERSION/actions-runner-win-x64-$env:RUNNER_VERSION.zip" -OutFile "actions-runner.zip"; `
+    Expand-Archive -Path ".\\actions-runner.zip" -DestinationPath '.'; `
+    Remove-Item ".\\actions-runner.zip" -Force
+
+# Add GitHub runner configuration startup script
+ADD start.ps1 .
+ADD Cleanup-Runners.ps1 .
+ENTRYPOINT ["powershell.exe", ".\\start.ps1"]
