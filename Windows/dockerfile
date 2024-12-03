@@ -43,9 +43,6 @@ RUN pip3 install Jinja2
 RUN pip3 install PyOpenGL
 RUN pip3 install pyside6==6.5.1.1 --ignore-installed
 
-# Install Visual Studio 2022 Professional
-RUN choco install -y visualstudio2022professional --package-parameters "--allWorkloads --includeRecommended --includeOptional --passive"
-
 # Manually remove an old ssh-agent service
 RUN sc.exe delete ssh-agent
 RUN choco install -y openssh -params '"/SSHAgentFeature"' --no-progress -y
@@ -57,6 +54,35 @@ RUN setx /M PATH $(${Env:PATH} + \";${Env:ProgramFiles}\CMake\bin\")
 ADD cmake-3.31.0-gb262cf9-win32-x86.exe .
 RUN .\cmake-3.31.0-gb262cf9-win32-x86.exe /S /D=C:\Program Files\CMake
 
+# Restore the default Windows shell for correct batch processing.
+SHELL ["cmd", "/S", "/C"]
+
+# Set up environment to collect install errors.
+COPY Install.cmd C:\TEMP\
+ADD https://aka.ms/vscollect.exe C:\TEMP\collect.exe
+
+# Install Node.js LTS
+ADD https://nodejs.org/dist/v8.11.3/node-v8.11.3-x64.msi C:\TEMP\node-install.msi
+RUN start /wait msiexec.exe /i C:\TEMP\node-install.msi /l*vx "%TEMP%\MSI-node-install.log" /qn ADDLOCAL=ALL
+
+# Download channel for fixed install.
+ARG CHANNEL_URL=https://aka.ms/vs/17/release/channel
+ADD ${CHANNEL_URL} C:\TEMP\VisualStudio.chman
+
+# Download and install Build Tools for Visual Studio 2022 for native desktop workload.
+ADD https://aka.ms/vs/17/release/vs_buildtools.exe C:\TEMP\vs_buildtools.exe
+RUN C:\TEMP\Install.cmd C:\TEMP\vs_buildtools.exe --quiet --wait --norestart --nocache `
+    --channelUri C:\TEMP\VisualStudio.chman `
+    --installChannelUri C:\TEMP\VisualStudio.chman `
+    --add Microsoft.VisualStudio.Workload.VCTools --includeRecommended`
+    --installPath C:\BuildTools
+
+# Set the default shell
+SHELL ["powershell", "-Command", "$ErrorActionPreference = 'Stop';"]
+
+# Install Windows SDK 11
+RUN choco install -y windows-sdk-11-version-24h2-all
+
 # Download GitHub Runner based on RUNNER_VERSION argument (Can use: Docker build --build-arg RUNNER_VERSION=x.y.z)
 RUN Invoke-WebRequest -Uri "https://github.com/actions/runner/releases/download/v$env:RUNNER_VERSION/actions-runner-win-x64-$env:RUNNER_VERSION.zip" -OutFile "actions-runner.zip"; `
     Expand-Archive -Path ".\\actions-runner.zip" -DestinationPath '.'; `
@@ -65,4 +91,7 @@ RUN Invoke-WebRequest -Uri "https://github.com/actions/runner/releases/download/
 # Add GitHub runner configuration startup script
 ADD start.ps1 .
 ADD cleanup-runners.ps1 .
-ENTRYPOINT ["pwsh.exe", ".\\start.ps1"]
+
+# Use developer command prompt and start PowerShell if no other command specified.
+ENTRYPOINT C:\BuildTools\Common7\Tools\VsDevCmd.bat &&
+CMD ["powershell.exe", "-NoLogo", "-ExecutionPolicy", "Bypass", "./start.ps1"]

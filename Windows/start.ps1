@@ -9,6 +9,11 @@ Param (
     [string]$pat = $env:GH_TOKEN_ENV
 )
 
+$vsPath = &"${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" -latest -products * -property installationpath
+Write-Host "Microsoft Visual Studio path = '$vsPath'"
+Import-Module (Get-ChildItem $vsPath -Recurse -File -Filter Microsoft.VisualStudio.DevShell.dll).FullName # Use module `Microsoft.VisualStudio.DevShell.dll`
+Enter-VsDevShell -VsInstallPath $vsPath -SkipAutomaticLocation -DevCmdArguments '-arch=x64'
+
 #Use --with-token to pass in a PAT token on standard input. The minimum required scopes for the token are: "repo", "read:org".
 #Alternatively, gh will use the authentication token found in environment variables. See gh help environment for more info.
 #To use gh in GitHub Actions, add GH_TOKEN: $ to "env". on Docker run: Docker run -e GH_TOKEN='myPatToken'
