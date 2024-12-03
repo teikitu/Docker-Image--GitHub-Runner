@@ -16,7 +16,7 @@ gh auth login --with-token $pat
 #Cleanup#
 #Look for any old/stale dockerNode- registrations to clean up
 #Windows containers cannot gracefully remove registration via powershell due to issue: https://github.com/moby/moby/issues/25982#
-#For this reason we can use this scrip to cleanup old offline instances/registrations
+#For this reason we can use this script to cleanup old offline instances/registrations
 $runnerBaseName = "dockerNode-"
 $runnerListJson = gh api -H "Accept: application/vnd.github.v3+json" "/repos/$owner/$repo/actions/runners"
 $runnerList = (ConvertFrom-Json -InputObject $runnerListJson).runners

@@ -5,8 +5,6 @@ FROM mcr.microsoft.com/windows/servercore:ltsc2025
 
 # Input GitHub runner version argument
 ARG RUNNER_VERSION
-ARG GH_OWNER_ARG
-ARG GH_TOKEN_ARG
 
 # Additional label information
 LABEL Author="Andrew Aye"
@@ -20,6 +18,9 @@ SHELL ["powershell", "-Command", "$ErrorActionPreference = 'Stop';"]
 
 # Set working directory
 WORKDIR /actions-runner
+
+# Set CPU limit
+ENV DOCKER_CPU_SHARES 1024
 
 # Install chocolatey
 ADD install-choco.ps1 .
@@ -51,13 +52,10 @@ RUN choco install -y openssh -params '"/SSHAgentFeature"' --no-progress -y
 ENV GIT_SSH="C:\Program Files\OpenSSH-Win64\ssh.exe"
 
 # Install custom CMake
-ADD cmake-3.31.0-g6dffcf0-win32-x86.exe .
-RUN .\cmake-3.31.0-g6dffcf0-win32-x86.exe /S /D=C:\Program Files\CMake `
-    Remove-Item .\cmmake-3.31.0-g6dffcf0-win32-x86.exe -Force
-
-# Make Git Configuration
-ENV GH_OWNER_ENV=${GH_OWNER_ARG}
-ENV GH_TOKEN_ENV=${GH_TOKEN_ARG}
+RUN choco install -y cmake --version=3.31.1
+RUN setx /M PATH $(${Env:PATH} + \";${Env:ProgramFiles}\CMake\bin\")
+ADD cmake-3.31.0-gb262cf9-win32-x86.exe .
+RUN .\cmake-3.31.0-gb262cf9-win32-x86.exe /S /D=C:\Program Files\CMake
 
 # Download GitHub Runner based on RUNNER_VERSION argument (Can use: Docker build --build-arg RUNNER_VERSION=x.y.z)
 RUN Invoke-WebRequest -Uri "https://github.com/actions/runner/releases/download/v$env:RUNNER_VERSION/actions-runner-win-x64-$env:RUNNER_VERSION.zip" -OutFile "actions-runner.zip"; `
@@ -66,5 +64,5 @@ RUN Invoke-WebRequest -Uri "https://github.com/actions/runner/releases/download/
 
 # Add GitHub runner configuration startup script
 ADD start.ps1 .
-ADD Cleanup-Runners.ps1 .
-ENTRYPOINT ["powershell.exe", ".\\start.ps1"]
+ADD cleanup-runners.ps1 .
+ENTRYPOINT ["pwsh.exe", ".\\start.ps1"]

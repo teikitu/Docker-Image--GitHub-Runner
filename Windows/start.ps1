@@ -2,16 +2,17 @@
 #To use this entrypoint script run: Docker run -e GH_TOKEN='myPatToken' -e GH_OWNER='orgName' -e GH_REPOSITORY='repoName' -d imageName
 Param (
     [Parameter(Mandatory = $false)]
-    [string]$owner = $env:GH_OWNER,
+    [string]$owner = $env:GH_OWNER_ENV,
     [Parameter(Mandatory = $false)]
     [string]$repo = $env:GH_REPOSITORY,
     [Parameter(Mandatory = $false)]
-    [string]$pat = $env:GH_TOKEN
+    [string]$pat = $env:GH_TOKEN_ENV
 )
 
 #Use --with-token to pass in a PAT token on standard input. The minimum required scopes for the token are: "repo", "read:org".
 #Alternatively, gh will use the authentication token found in environment variables. See gh help environment for more info.
 #To use gh in GitHub Actions, add GH_TOKEN: $ to "env". on Docker run: Docker run -e GH_TOKEN='myPatToken'
+$env:GH_TOKEN = $env:GH_TOKEN_ENV
 gh auth login
 
 #Get Runner registration Token
