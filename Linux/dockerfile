@@ -1,93 +1,120 @@
 # escape=`
 
 # Use the latest Windows Server Core 2025 image.
-FROM mcr.microsoft.com/windows/servercore:ltsc2025
+FROM --platform=linux/amd64 ubuntu:24.04
 
 # Input GitHub runner version argument
 ARG RUNNER_VERSION
+ENV DEBIAN_FRONTEND=noninteractive
 
 # Additional label information
 LABEL Author="Andrew Aye"
 LABEL Email="github.sublime362@passmail.net"
 LABEL GitHub="https://github.com/teikitu/teikitu-release"
-LABEL BaseImage="servercore:ltsc2025"
+LABEL BaseImage="ubuntu:24.04"
 LABEL RunnerVersion=${RUNNER_VERSION}
 
-# Set the default shell
-SHELL ["powershell", "-Command", "$ErrorActionPreference = 'Stop';"]
+# update the base packages + add a non-sudo user
+RUN apt-get update -y && apt-get upgrade -y && useradd -m docker
 
-# Set working directory
-WORKDIR /actions-runner
+# Install dependenciesls -al
+RUN apt-get install -y --no-install-recommends lsb-release
+RUN apt-get install -y --no-install-recommends wget
+RUN apt-get install -y --no-install-recommends unzip
+RUN apt-get install -y --no-install-recommends jq
+RUN apt-get install -y --no-install-recommends libssl-dev
+RUN apt-get install -y --no-install-recommends gpg
+RUN apt-get install -y --no-install-recommends gnupg
+RUN apt-get install -y --no-install-recommends software-properties-common
+RUN apt-get update
+RUN apt-get install -y --no-install-recommends build-essential
 
-# Set CPU limit
-ENV DOCKER_CPU_SHARES 1024
+# Development tools - LLVM (installs package repo for other dev tools as well)
+RUN wget --no-check-certificate https://apt.llvm.org/llvm.sh `
+    && chmod +x ./llvm.sh `
+    && ./llvm.sh 19 all `
+    && rm llvm.sh
+RUN apt-get update
+RUN apt-get install -y --no-install-recommends ninja-build
+RUN apt-get install -y --no-install-recommends nodejs
+RUN apt-get install -y --no-install-recommends libcurl4-openssl-dev
 
-# Install chocolatey
-ADD install-choco.ps1 .
-RUN .\install-choco.ps1 -Wait; `
-    Remove-Item .\install-choco.ps1 -Force
+# Powershell
+RUN wget https://github.com/PowerShell/PowerShell/releases/download/v7.4.6/powershell_7.4.6-1.deb_amd64.deb `
+    && dpkg -i powershell_7.4.6-1.deb_amd64.deb `
+    && apt-get install -f `
+    && rm powershell_7.4.6-1.deb_amd64.deb
 
-# Install dependencies
-RUN choco install -y git
-RUN choco install -y gh
-RUN choco install -y powershell-core
-RUN choco install -y azure-cli
-RUN choco install -y ninja
-RUN choco install -y llvm
-RUN choco install -y winflexbison
-RUN choco install -y python3 --version=3.11.5
+# GitHub CLI
+RUN apt-get install -y --no-install-recommends gh
 
-# Install Python and dependencies needed for OpenUSD
-RUN python.exe -m pip install --upgrade pip
-RUN pip3 install Jinja2
-RUN pip3 install PyOpenGL
-RUN pip3 install pyside6==6.5.1.1 --ignore-installed
+# CMake
+RUN apt-get install -y --no-install-recommends libtool
+RUN apt-get install -y --no-install-recommends autoconf
+RUN apt remove --purge --auto-remove cmake
+RUN version=3.31 `
+    && build=2 `
+    && mkdir ~/temp `
+    && cd ~/temp `
+    && wget https://cmake.org/files/v$version/cmake-$version.$build.tar.gz `
+    && tar -xzvf cmake-$version.$build.tar.gz `
+    && cd cmake-$version.$build/ `
+    && export C=/usr/bin/clang-19 `
+    && export CXX=/usr/bin/clang++-19 `
+    && ./bootstrap `
+    && make -j$(nproc) `
+    && make install `
+    && cd ~ `
+    && rm -rf temp
 
-# Manually remove an old ssh-agent service
-RUN sc.exe delete ssh-agent
-RUN choco install -y openssh -params '"/SSHAgentFeature"' --no-progress -y
-ENV GIT_SSH="C:\Program Files\OpenSSH-Win64\ssh.exe"
+# Install Python
+RUN apt-get install -y --no-install-recommends python3
+RUN apt-get install -y --no-install-recommends python3-pip
+RUN apt-get install -y --no-install-recommends libpython3-dev
 
-# Install custom CMake
-RUN choco install -y cmake --version=3.31.1
-RUN setx /M PATH $(${Env:PATH} + \";${Env:ProgramFiles}\CMake\bin\")
-ADD cmake-3.31.0-gb262cf9-win32-x86.exe .
-RUN .\cmake-3.31.0-gb262cf9-win32-x86.exe /S /D=C:\Program Files\CMake
+# GLFW
+RUN apt-get install -y --no-install-recommends doxygen
+RUN apt-get install -y --no-install-recommends xorg-dev
+RUN apt-get install -y --no-install-recommends libglu1-mesa-dev
 
-# Restore the default Windows shell for correct batch processing.
-SHELL ["cmd", "/S", "/C"]
+# Dependencies for Doxygen
+RUN apt-get install -y --no-install-recommends flex
+RUN apt-get install -y --no-install-recommends bison
+RUN apt-get install -y --no-install-recommends libedit-dev
+RUN apt-get install -y --no-install-recommends openjdk-21-jdk
 
-# Set up environment to collect install errors.
-COPY install.cmd C:\TEMP\
-ADD https://aka.ms/vscollect.exe C:\TEMP\collect.exe
+# Boost
 
-# Install Node.js LTS
-ADD https://nodejs.org/dist/v8.11.3/node-v8.11.3-x64.msi C:\TEMP\node-install.msi
-RUN start /wait msiexec.exe /i C:\TEMP\node-install.msi /l*vx "%TEMP%\MSI-node-install.log" /qn ADDLOCAL=ALL
+# Install Python dependencies needed for OpenUSD
+RUN pip3 install Jinja2 --break-system-packages
+RUN pip3 install PyOpenGL --break-system-packages
+RUN pip3 install pyside6 --break-system-packages
 
-# Download channel for fixed install.
-ARG CHANNEL_URL=https://aka.ms/vs/17/release/channel
-ADD ${CHANNEL_URL} C:\TEMP\VisualStudio.chman
+# Action Runner dependencies
+RUN wget https://dot.net/v1/dotnet-install.sh -O dotnet-install.sh `
+    && chmod +x ./dotnet-install.sh `
+    && ./dotnet-install.sh --version latest `
+    && rm dotnet-install.sh
+RUN apt-get install -y --no-install-recommends liblttng-ust1
+RUN apt-get install -y --no-install-recommends curl
 
-# Download and install Build Tools for Visual Studio 2022 for native desktop workload.
-ADD https://aka.ms/vs/17/release/vs_buildtools.exe C:\TEMP\vs_buildtools.exe
-RUN C:\TEMP\install.cmd C:\TEMP\vs_buildtools.exe --quiet --wait --norestart --nocache `
-    --channelUri C:\TEMP\VisualStudio.chman `
-    --installChannelUri C:\TEMP\VisualStudio.chman `
-    --add Microsoft.VisualStudio.Workload.VCTools --includeRecommended`
-    --installPath C:\BuildTools
+# cd into the user directory, download and unzip the github actions runner
+RUN cd /home/docker && mkdir actions-runner && cd actions-runner `
+    && curl -O -L https://github.com/actions/runner/releases/download/v${RUNNER_VERSION}/actions-runner-linux-x64-${RUNNER_VERSION}.tar.gz `
+    && tar xzf ./actions-runner-linux-x64-${RUNNER_VERSION}.tar.gz
 
-# Set the default shell
-SHELL ["powershell", "-Command", "$ErrorActionPreference = 'Stop';"]
+# install some additional dependencies
+RUN chown -R docker ~docker && /home/docker/actions-runner/bin/installdependencies.sh
+RUN apt-get install -y --no-install-recommends git
 
-# Download GitHub Runner based on RUNNER_VERSION argument (Can use: Docker build --build-arg RUNNER_VERSION=x.y.z)
-RUN Invoke-WebRequest -Uri "https://github.com/actions/runner/releases/download/v$env:RUNNER_VERSION/actions-runner-win-x64-$env:RUNNER_VERSION.zip" -OutFile "actions-runner.zip"; `
-    Expand-Archive -Path ".\\actions-runner.zip" -DestinationPath '.'; `
-    Remove-Item ".\\actions-runner.zip" -Force
+# add over the start.sh script
+ADD start.sh start.sh
 
-# Add GitHub runner configuration startup script
-ADD start.ps1 .
-ADD cleanup-runners.ps1 .
+# make the script executable
+RUN chmod +x start.sh
 
-# Use developer command prompt and start PowerShell if no other command specified.
-ENTRYPOINT ["C:\\BuildTools\\Common7\\Tools\\VsDevCmd.bat", "&&", "pwsh.exe", "-NoLogo", "-ExecutionPolicy", "Bypass", "./start.ps1"]
+# set the user to "docker" so all subsequent commands are run as the docker user
+USER docker
+
+# set the entrypoint to the start.sh script
+ENTRYPOINT ["./start.sh"]

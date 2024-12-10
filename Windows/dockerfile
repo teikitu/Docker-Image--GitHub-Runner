@@ -19,9 +19,6 @@ SHELL ["powershell", "-Command", "$ErrorActionPreference = 'Stop';"]
 # Set working directory
 WORKDIR /actions-runner
 
-# Set CPU limit
-ENV DOCKER_CPU_SHARES 1024
-
 # Install chocolatey
 ADD install-choco.ps1 .
 RUN .\install-choco.ps1 -Wait; `
@@ -34,7 +31,7 @@ RUN choco install -y powershell-core
 RUN choco install -y azure-cli
 RUN choco install -y ninja
 RUN choco install -y llvm
-RUN choco install -y winflexbison
+RUN choco install -y winflexbison3
 RUN choco install -y python3 --version=3.11.5
 
 # Install Python and dependencies needed for OpenUSD

@@ -24,15 +24,15 @@ git config --global user.email "github.very069@passmail.net"
 git config --global user.name "Andrew Aye"
 
 #Get Runner registration Token
-$jsonObj = gh api --method POST -H "Accept: application/vnd.github.v3+json" "/repos/$owner/$repo/actions/runners/registration-token"
+$jsonObj = gh api --method POST -H "Accept: application/vnd.github.v3+json" "/orgs/$owner/actions/runners/registration-token"
 $regToken = (ConvertFrom-Json -InputObject $jsonObj).token
 $runnerBaseName = "dockerNode-"
 $runnerName = $runnerBaseName + (((New-Guid).Guid).replace("-", "")).substring(0, 5)
 
 try {
     #Register new runner instance
-    write-host "Registering GitHub Self Hosted Runner on: $owner/$repo"
-    ./config.cmd --unattended --url "https://github.com/$owner/$repo" --token $regToken --name $runnerName
+    write-host "Registering GitHub Self Hosted Runner on: $owner"
+    ./config.cmd --unattended --url "https://github.com/$owner" --token $regToken --name $runnerName
 
     #Remove PAT token after registering new instance
     $pat=$null
