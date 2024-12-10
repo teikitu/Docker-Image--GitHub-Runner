@@ -17,22 +17,22 @@ Enter-VsDevShell -VsInstallPath $vsPath -SkipAutomaticLocation -DevCmdArguments 
 #Use --with-token to pass in a PAT token on standard input. The minimum required scopes for the token are: "repo", "read:org".
 #Alternatively, gh will use the authentication token found in environment variables. See gh help environment for more info.
 #To use gh in GitHub Actions, add GH_TOKEN: $ to "env". on Docker run: Docker run -e GH_TOKEN='myPatToken'
-$env:GH_TOKEN = $env:GH_TOKEN_ENV
-gh auth login
-
 git config --global user.email "github.very069@passmail.net"
 git config --global user.name "Andrew Aye"
+
+$env:GH_TOKEN = $env:GH_TOKEN_ENV
+gh auth login
 
 #Get Runner registration Token
 $jsonObj = gh api --method POST -H "Accept: application/vnd.github.v3+json" "/orgs/$owner/actions/runners/registration-token"
 $regToken = (ConvertFrom-Json -InputObject $jsonObj).token
-$runnerBaseName = "dockerNode-"
+$runnerBaseName = "Node-WIN-X64-"
 $runnerName = $runnerBaseName + (((New-Guid).Guid).replace("-", "")).substring(0, 5)
 
 try {
     #Register new runner instance
     write-host "Registering GitHub Self Hosted Runner on: $owner"
-    ./config.cmd --unattended --url "https://github.com/$owner" --token $regToken --name $runnerName
+    ./config.cmd --unattended --url "https://github.com/$owner" --token $regToken --name $runnerName --runnergroup Default --work _work
 
     #Remove PAT token after registering new instance
     $pat=$null
